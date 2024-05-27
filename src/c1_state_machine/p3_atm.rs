@@ -116,7 +116,7 @@ impl StateMachine for Atm {
                                 .fold(0, |acc, digit| acc * 10 + digit);
 
                             if entered_amount <= starting_state.cash_inside {
-                                starting_state.cash_inside -= entered_amount;
+                                new_state.cash_inside = starting_state.cash_inside - entered_amount;
                             }
                             // Clear the keystroke register after 'Enter' is processed
                             new_state.keystroke_register.clear();
