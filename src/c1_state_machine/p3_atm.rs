@@ -1,7 +1,3 @@
-//! The automated teller machine gives you cash after you swipe your card and enter your pin.
-//! The atm may fail to give you cash if it is empty or you haven't swiped your card, or you have
-//! entered the wrong pin.
-
 use super::StateMachine;
 
 /// The keys on the ATM keypad
@@ -58,8 +54,88 @@ impl StateMachine for Atm {
     type Transition = Action;
 
     fn next_state(starting_state: &Self::State, t: &Self::Transition) -> Self::State {
-        todo!("Exercise 4")
+        let mut new_state = starting_state.clone();
+        match t {
+            Action::SwipeCard(pin_hash) => {
+                // Start the authentication process
+                new_state.expected_pin_hash = Auth::Authenticating(*pin_hash);
+                new_state.keystroke_register.clear();
+            }
+            Action::PressKey(key) => {
+                match &new_state.expected_pin_hash {
+                    Auth::Waiting => {
+                        // No card swiped, ignore key presses
+                    }
+                    Auth::Authenticating(expected_hash) => {
+                        // Collect the keystrokes until 'Enter' is pressed
+                        if *key == Key::Enter {
+                            // Convert keystrokes to a number (pin)
+                            let entered_pin: u64 = new_state
+                                .keystroke_register
+                                .iter()
+                                .filter_map(|k| match k {
+                                    Key::One => Some(1),
+                                    Key::Two => Some(2),
+                                    Key::Three => Some(3),
+                                    Key::Four => Some(4),
+                                    _ => None,
+                                })
+                                .fold(0, |acc, digit| acc * 10 + digit);
+
+                            // Hash the entered pin
+                            let entered_hash = hash(entered_pin);
+
+                            // Check if the entered pin hash matches the expected pin hash
+                            if entered_hash == *expected_hash {
+                                new_state.expected_pin_hash = Auth::Authenticated;
+                            } else {
+                                // Reset to waiting state if the pin is incorrect
+                                new_state.expected_pin_hash = Auth::Waiting;
+                            }
+                            // Clear the keystroke register after 'Enter' is processed
+                            new_state.keystroke_register.clear();
+                        } else {
+                            // Store the key press
+                            new_state.keystroke_register.push(key.clone());
+                        }
+                    }
+                    Auth::Authenticated => {
+                        // Collect the keystrokes until 'Enter' is pressed
+                        if *key == Key::Enter {
+                            // Convert keystrokes to a number (pin)
+                            let entered_amount: u64 = new_state
+                                .keystroke_register
+                                .iter()
+                                .filter_map(|k| match k {
+                                    Key::One => Some(1),
+                                    Key::Two => Some(2),
+                                    Key::Three => Some(3),
+                                    Key::Four => Some(4),
+                                    _ => None,
+                                })
+                                .fold(0, |acc, digit| acc * 10 + digit);
+
+                            if entered_amount <= starting_state.cash_inside {
+                                starting_state.cash_inside -= entered_amount;
+                            }
+                            // Clear the keystroke register after 'Enter' is processed
+                            new_state.keystroke_register.clear();
+                        } else {
+                            // Store the key press
+                            new_state.keystroke_register.push(key.clone());
+                        }
+                    }
+                }
+            }
+        }
+        new_state
     }
+}
+
+/// Simple hash function for demonstration purposes
+fn hash(pin: u64) -> u64 {
+    // You should replace this with a proper hashing algorithm
+    pin * 2654435761 % 2_u64.pow(32)
 }
 
 #[test]
